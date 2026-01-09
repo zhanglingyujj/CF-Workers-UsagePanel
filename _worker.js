@@ -412,11 +412,11 @@ async function UsagePanel管理面板(TOKEN) {
 
         .top-nav {
             width: 100%;
-            max-width: 800px;
+            max-width: 680px;
             display: flex;
             justify-content: flex-end;
             gap: 1rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
             animation: slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -451,10 +451,10 @@ async function UsagePanel管理面板(TOKEN) {
 
         .container {
             width: 100%;
-            max-width: 800px;
+            max-width: 680px;
             display: flex;
             flex-direction: column;
-            gap: 2rem;
+            gap: 1.5rem;
             animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -464,14 +464,14 @@ async function UsagePanel管理面板(TOKEN) {
             -webkit-backdrop-filter: blur(24px);
             border: 1px solid var(--stroke);
             border-radius: 24px;
-            padding: 2.5rem;
+            padding: 2rem;
             box-shadow: 
                 0 25px 50px -12px rgba(0, 0, 0, 0.5),
                 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
         }
 
         header {
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
 
         h1, h2 {
@@ -481,7 +481,7 @@ async function UsagePanel管理面板(TOKEN) {
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             letter-spacing: -0.01em;
         }
 
@@ -489,7 +489,7 @@ async function UsagePanel管理面板(TOKEN) {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
 
         .module-header h2 { margin-bottom: 0; }
@@ -1038,8 +1038,8 @@ async function UsagePanel管理面板(TOKEN) {
                         <div class="account-item">
                             <div class="account-info">
                                 <div>
-                                    <div class="account-name">👤 \${acc.Name}</div>
-                                    <div class="account-id">ID: \${acc.AccountID || 'Global API Key'}</div>
+                                    <div class="account-name">🔑 \${acc.Name}</div>
+                                    <div class="account-id">🔒 AccountID: \${acc.AccountID || 'Global API Key'}</div>
                                     <div class="account-id" style="margin-top: 4px; opacity: 0.8;">🕒 最后更新: \${updateTime}</div>
                                 </div>
                                 <button class="delete-btn" onclick="deleteAccount(\${acc.ID})">删除当前账号</button>
