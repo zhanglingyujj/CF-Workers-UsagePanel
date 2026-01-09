@@ -6,6 +6,7 @@ export default {
         if (!面板管理员密码) {
             return new Response('请先在变量中设置面板管理员密码', { status: 500 });
         }
+        
         if (env.KV && typeof env.KV.get === 'function') {
             const url = new URL(request.url);
             const UA = request.headers.get('User-Agent') || 'null';
@@ -51,7 +52,7 @@ export default {
                     headers: { 'Content-Type': 'text/html; charset=UTF-8' }
                 });
             } else if (区分大小写访问路径.startsWith('api/') && request.method === 'POST') {// API接口
-                if (区分大小写访问路径 === 'api/login') {
+                if (区分大小写访问路径 === 'api/login') { // 管理员登录接口
                     try {
                         const body = await request.json();
                         const 输入密码 = body.password || '';
@@ -85,10 +86,67 @@ export default {
                     });
                 }
 
-                if (区分大小写访问路径 === 'api/add') {
-                    // 增加CF账号（开发中）
-                } else if (区分大小写访问路径 === 'api/del') {
-                    // 删除CF账号（开发中）
+                if (区分大小写访问路径 === 'api/add') {// 增加CF账号
+                    try {
+                        const newConfig = await request.json();
+                        
+                        // 验证配置完整性：需要 (Email + GlobalAPIKey) 或 (AccountID + APIToken)
+                        const hasEmailAuth = newConfig.Email && newConfig.GlobalAPIKey;
+                        const hasTokenAuth = newConfig.AccountID && newConfig.APIToken;
+                        
+                        if (!hasEmailAuth && !hasTokenAuth) {
+                            return new Response(JSON.stringify({ success: false, msg: '配置不完整，需要提供 Email+GlobalAPIKey 或 AccountID+APIToken' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+                        }
+                        
+                        const CF_JSON = {
+                            ID: 0,
+                            Name: newConfig.Name || '未命名账号',
+                            Email: hasEmailAuth ? newConfig.Email : null,
+                            GlobalAPIKey: hasEmailAuth ? newConfig.GlobalAPIKey : null,
+                            AccountID: newConfig.AccountID || null,
+                            APIToken: hasTokenAuth ? newConfig.APIToken : null,
+                            UpdateTime: Date.now(),
+                            Usage: {
+                                success: false,
+                                pages: 0,
+                                workers: 0,
+                                total: 0,
+                                max: 100000
+                            }
+                        };
+
+                        // 验证 API 信息是否有效
+                        const usage_result = await getCloudflareUsage(CF_JSON.Email, CF_JSON.GlobalAPIKey, CF_JSON.AccountID, CF_JSON.APIToken);
+                        if (!usage_result.success) {
+                            return new Response(JSON.stringify({ success: false, msg: '无法验证该CF账号的API信息' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+                        }
+                        
+                        CF_JSON.Usage = usage_result;
+                        CF_JSON.UpdateTime = Date.now();
+                        
+                        // 读取现有配置
+                        let usage_config_json = await env.KV.get('usage_config.json', { type: 'json' });
+                        if (!Array.isArray(usage_config_json)) {
+                            usage_config_json = [];
+                        }
+                        
+                        // 生成新 ID：现有最大 ID + 1，如果为空则从 1 开始
+                        CF_JSON.ID = usage_config_json.length > 0 
+                            ? Math.max(...usage_config_json.map(item => item.ID || 0)) + 1 
+                            : 1;
+                        
+                        // 添加到配置数组中并保存到 KV
+                        usage_config_json.push(CF_JSON);
+                        await env.KV.put('usage_config.json', JSON.stringify(usage_config_json));
+                        
+                        return new Response(JSON.stringify({ success: true, msg: '账号添加成功', data: { ID: CF_JSON.ID, Name: CF_JSON.Name } }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+                    } catch (error) {
+                        console.error('保存配置失败:', error);
+                        return new Response(JSON.stringify({ success: false, msg: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+                    }
+                    
+                } else if (区分大小写访问路径 === 'api/del') {// 删除CF账号（开发中）
+
                 } else if (区分大小写访问路径 === 'api/check') {
                     try {
                         const Usage_JSON = await getCloudflareUsage(url.searchParams.get('Email'), url.searchParams.get('GlobalAPIKey'), url.searchParams.get('AccountID'), url.searchParams.get('APIToken'));
@@ -101,13 +159,6 @@ export default {
             } else if (访问路径 === 'robots.txt') {
                 return new Response('User-agent: *\nDisallow: /', { status: 200, headers: { 'Content-Type': 'text/plain; charset=UTF-8' } });
             }
-            
-            /*
-            if (访问路径 === 'test') {
-                const usage = await 更新请求数(env);
-                return new Response(JSON.stringify(usage, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
-            }
-            */
 
             return UsagePanel主页(临时TOKEN);
         } else {
@@ -129,7 +180,7 @@ const usage_json_default = {
 async function 更新请求数(env) {
     let usage_config_json = await env.KV.get('usage_config.json', { type: 'json' });
     let usage_json = { ...usage_json_default };
-    
+
     if (!usage_config_json) {
         // 不存在则创建一个空的配置文件
         usage_config_json = [];
@@ -143,18 +194,18 @@ async function 更新请求数(env) {
         let total_pages = 0;
         let total_workers = 0;
         let total_max = 0;
-        
+
         for (let i = 0; i < usage_config_json.length; i++) {
             const account = usage_config_json[i];
             const { Email, GlobalAPIKey, AccountID, APIToken } = account;
-            
+
             // 获取该账号的使用情况
             const usage = await getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken);
-            
+
             // 更新到该账号的 Usage 中
             usage_config_json[i].Usage = usage;
             usage_config_json[i].最后更新时间 = Date.now();
-            
+
             // 累加使用数据
             if (usage.success) {
                 total_pages += usage.pages || 0;
@@ -162,10 +213,10 @@ async function 更新请求数(env) {
                 total_max += usage.max || 100000;
             }
         }
-        
+
         // 遍历完成后保存 usage_config_json 回 KV
         await env.KV.put('usage_config.json', JSON.stringify(usage_config_json));
-        
+
         // 将所有账号的数据累加到 usage_json 中并保存回 KV
         usage_json.success = true;
         usage_json.pages = total_pages;
@@ -180,7 +231,7 @@ async function 更新请求数(env) {
         usage_json.msg = '⚠️ 尚未添加任何Cloudflare账号';
         await env.KV.put('usage.json', JSON.stringify(usage_json));
     }
-    
+
     return usage_json;
 }
 
@@ -540,7 +591,6 @@ async function UsagePanel主页(TOKEN) {
             border: 1px solid var(--stroke);
             border-radius: 20px;
             padding: 2rem;
-            width: 90%;
             max-width: 360px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
