@@ -579,11 +579,26 @@ async function UsagePanel管理面板(TOKEN) {
         .progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 999px; width: 0%; transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
         .progress-bar::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); transform: translateX(-100%); animation: shimmer 2.5s infinite; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
-        .mini-card { background: var(--item-bg); border: 1px solid var(--stroke); border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; align-items: center; transition: all 0.3s ease; }
-        .mini-card:hover { background: rgba(99, 102, 241, 0.05); transform: translateY(-4px); border-color: var(--primary); }
-        .mini-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
-        .mini-label { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem; }
-        .mini-value { font-size: 1.1rem; font-weight: 600; color: var(--text-main); }
+        .mini-card { 
+            background: var(--item-bg); 
+            border: 1px solid var(--stroke); 
+            border-radius: 16px; 
+            padding: 1rem 1.25rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 1.25rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+        .mini-card:hover { 
+            background: rgba(99, 102, 241, 0.08); 
+            transform: translateY(-4px); 
+            border-color: var(--primary); 
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
+        }
+        .mini-icon { font-size: 1.75rem; margin-bottom: 0; line-height: 1; }
+        .mini-info { display: flex; flex-direction: column; justify-content: center; }
+        .mini-label { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0; letter-spacing: 0.05em; font-weight: 500; }
+        .mini-value { font-size: 1.25rem; font-weight: 700; color: var(--text-main); line-height: 1.2; }
         .total-text { text-align: right; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
 
         /* Account List Styles */
@@ -787,21 +802,19 @@ async function UsagePanel管理面板(TOKEN) {
 
             .mini-card {
                 padding: 1rem;
-                flex-direction: row;
-                justify-content: space-between;
+                gap: 1rem;
             }
 
             .mini-icon {
-                font-size: 1.25rem;
-                margin-bottom: 0;
+                font-size: 1.5rem;
             }
 
             .mini-label {
-                font-size: 0.7rem;
+                font-size: 0.65rem;
             }
 
             .mini-value {
-                font-size: 1rem;
+                font-size: 1.1rem;
             }
 
             .account-item {
@@ -1084,13 +1097,17 @@ async function UsagePanel管理面板(TOKEN) {
                     <div class="stats-grid">
                         <div class="mini-card">
                             <div class="mini-icon">🔶</div>
-                            <div class="mini-label">Workers</div>
-                            <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Workers</div>
+                                <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                         <div class="mini-card">
                             <div class="mini-icon">⚡️</div>
-                            <div class="mini-label">Pages</div>
-                            <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Pages</div>
+                                <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                     </div>
                 \`;
@@ -1314,7 +1331,7 @@ async function UsagePanel主页(TOKEN) {
 
         .container {
             width: 100%;
-            max-width: 440px;
+            max-width: 500px;
             animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -1440,41 +1457,44 @@ async function UsagePanel主页(TOKEN) {
             margin-top: 1.5rem;
         }
 
-        .mini-card {
-            background: var(--item-bg);
-            border: 1px solid var(--stroke);
-            border-radius: 16px;
-            padding: 1.25rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: all 0.3s ease;
+        .mini-card { 
+            background: var(--item-bg); 
+            border: 1px solid var(--stroke); 
+            border-radius: 16px; 
+            padding: 1rem 1.25rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 1.25rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            position: relative;
+            overflow: hidden;
         }
-
-        .mini-card:hover {
-            background: rgba(99, 102, 241, 0.05);
-            transform: translateY(-4px);
-            border-color: var(--primary);
+        .mini-card:hover { 
+            background: rgba(99, 102, 241, 0.08); 
+            transform: translateY(-4px); 
+            border-color: var(--primary); 
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
         }
-
-        .mini-icon {
-            font-size: 1.5rem;
-            margin-bottom: 0.75rem;
+        .mini-icon { 
+            font-size: 1.75rem; 
+            margin-bottom: 0; 
+            line-height: 1;
             filter: drop-shadow(0 0 10px rgba(255,255,255,0.1));
         }
-
-        .mini-label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
+        .mini-info { display: flex; flex-direction: column; justify-content: center; }
+        .mini-label { 
+            font-size: 0.7rem; 
+            text-transform: uppercase; 
             letter-spacing: 0.05em;
-            color: var(--text-muted);
-            margin-bottom: 0.25rem;
+            color: var(--text-muted); 
+            margin-bottom: 0; 
+            font-weight: 500;
         }
-
-        .mini-value {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-main);
+        .mini-value { 
+            font-size: 1.25rem; 
+            font-weight: 700; 
+            color: var(--text-main); 
+            line-height: 1.2;
         }
 
         .total-text {
@@ -1903,13 +1923,17 @@ async function UsagePanel主页(TOKEN) {
                     <div class="stats-grid">
                         <div class="mini-card">
                             <div class="mini-icon">🔶</div>
-                            <div class="mini-label">Workers</div>
-                            <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Workers</div>
+                                <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                         <div class="mini-card">
                             <div class="mini-icon">⚡️</div>
-                            <div class="mini-label">Pages</div>
-                            <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Pages</div>
+                                <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                     </div>
                 \`;
