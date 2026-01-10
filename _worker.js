@@ -107,7 +107,7 @@ export default {
                         // 验证配置完整性：需要 (Email + GlobalAPIKey) 或 (AccountID + APIToken)
                         const hasEmailAuth = newConfig.Email && newConfig.GlobalAPIKey;
                         const hasTokenAuth = newConfig.AccountID && newConfig.APIToken;
-                        
+
                         if (!hasEmailAuth && !hasTokenAuth) {
                             return new Response(JSON.stringify({ success: false, msg: '配置不完整，需要提供 Email+GlobalAPIKey 或 AccountID+APIToken' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                         }
@@ -145,7 +145,7 @@ export default {
                         }
 
                         // 验证账号是否已存在 (通过 Email 或 AccountID 判断)
-                        const existingIndex = usage_config_json.findIndex(item => 
+                        const existingIndex = usage_config_json.findIndex(item =>
                             (CF_JSON.Email && item.Email && item.Email.toLowerCase() === CF_JSON.Email.toLowerCase()) ||
                             (CF_JSON.AccountID && item.AccountID && item.AccountID === CF_JSON.AccountID)
                         );
@@ -269,18 +269,25 @@ async function 更新请求数(env) {
         let total_workers = 0;
         let total_max = 0;
 
-        for (let i = 0; i < usage_config_json.length; i++) {
-            const account = usage_config_json[i];
+        // 使用 Promise.all 并发获取所有账号的使用情况
+        const updatePromises = usage_config_json.map(async (account) => {
             const { Email, GlobalAPIKey, AccountID, APIToken } = account;
 
             // 获取该账号的使用情况
             const usage = await getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken);
 
             // 更新到该账号的 Usage 中
-            usage_config_json[i].Usage = usage;
-            usage_config_json[i].UpdateTime = Date.now();
+            account.Usage = usage;
+            account.UpdateTime = Date.now();
 
-            // 累加使用数据
+            return usage;
+        });
+
+        // 等待所有请求完成
+        const results = await Promise.all(updatePromises);
+
+        // 累加使用数据
+        for (const usage of results) {
             if (usage.success) {
                 total_pages += usage.pages || 0;
                 total_workers += usage.workers || 0;
@@ -567,16 +574,31 @@ async function UsagePanel管理面板(TOKEN) {
         .usage-section { margin-bottom: 2rem; position: relative; }
         .usage-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem; }
         .label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
-        .percentage { font-family: 'Outfit', monospace; font-size: 1.25rem; font-weight: 600; color: var(--text-main); text-shadow: 0 0 20px var(--primary-glow); }
+        .percentage { font-family: 'Outfit', monospace; font-size: 1.25rem; font-weight: 600; color: var(--gradient-color, var(--text-main)); text-shadow: 0 0 20px var(--gradient-color-shadow, var(--primary-glow)); transition: color 0.6s ease, text-shadow 0.6s ease; }
         .progress-track { background: var(--track-bg); border: 1px solid var(--stroke); border-radius: 999px; height: 14px; overflow: hidden; position: relative; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 999px; width: 0%; transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #10b981 0%, #eab308 50%, #ef4444 100%); background-size: var(--bg-size, 100%); background-position: left; border-radius: 999px; width: 0%; transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; }
         .progress-bar::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); transform: translateX(-100%); animation: shimmer 2.5s infinite; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
-        .mini-card { background: var(--item-bg); border: 1px solid var(--stroke); border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; align-items: center; transition: all 0.3s ease; }
-        .mini-card:hover { background: rgba(99, 102, 241, 0.05); transform: translateY(-4px); border-color: var(--primary); }
-        .mini-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
-        .mini-label { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem; }
-        .mini-value { font-size: 1.1rem; font-weight: 600; color: var(--text-main); }
+        .mini-card { 
+            background: var(--item-bg); 
+            border: 1px solid var(--stroke); 
+            border-radius: 16px; 
+            padding: 1rem 1.25rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 1.25rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+        .mini-card:hover { 
+            background: rgba(99, 102, 241, 0.08); 
+            transform: translateY(-4px); 
+            border-color: var(--primary); 
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
+        }
+        .mini-icon { font-size: 1.75rem; margin-bottom: 0; line-height: 1; }
+        .mini-info { display: flex; flex-direction: column; justify-content: center; }
+        .mini-label { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0; letter-spacing: 0.05em; font-weight: 500; }
+        .mini-value { font-size: 1.25rem; font-weight: 700; color: var(--text-main); line-height: 1.2; }
         .total-text { text-align: right; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
 
         /* Account List Styles */
@@ -780,21 +802,19 @@ async function UsagePanel管理面板(TOKEN) {
 
             .mini-card {
                 padding: 1rem;
-                flex-direction: row;
-                justify-content: space-between;
+                gap: 1rem;
             }
 
             .mini-icon {
-                font-size: 1.25rem;
-                margin-bottom: 0;
+                font-size: 1.5rem;
             }
 
             .mini-label {
-                font-size: 0.7rem;
+                font-size: 0.65rem;
             }
 
             .mini-value {
-                font-size: 1rem;
+                font-size: 1.1rem;
             }
 
             .account-item {
@@ -959,19 +979,38 @@ async function UsagePanel管理面板(TOKEN) {
 
     <!-- 添加账号模态框 -->
     <div class="modal-overlay" id="addModal">
-        <div class="modal">
-            <h3>添加 Cloudflare 账号</h3>
+        <div class="modal" style="max-width: 440px;">
+            <h3>⚙️ 添加 Cloudflare 账号</h3>
             <div class="input-group">
                 <label>账号备注</label>
-                <input type="text" id="newName" placeholder="admin@google.com">
+                <input type="text" id="newName" placeholder="我的账号">
             </div>
             <div class="input-group">
-                <label>Account ID</label>
-                <input type="text" id="newAccountID" placeholder="Workers和Pages 面板右侧的 AccountID">
+                <label>验证方式</label>
+                <select id="authMethod" onchange="switchAuthMethod()" style="width: 100%; padding: 0.75rem 1rem; background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 12px; color: var(--text-main); outline: none; cursor: pointer; appearance: none; -webkit-appearance: none;">
+                    <option value="token">Account ID + API Token</option>
+                    <option value="global">Email + Global API Key</option>
+                </select>
             </div>
-            <div class="input-group">
-                <label>API Token</label>
-                <input type="password" id="newAPIToken" placeholder='包含"阅读分析数据和日志"权限的 API令牌'>
+            <div id="tokenFields">
+                <div class="input-group">
+                    <label>Account ID</label>
+                    <input type="text" id="newAccountID" placeholder="Workers和Pages 面板右侧的 AccountID">
+                </div>
+                <div class="input-group">
+                    <label>API Token</label>
+                    <input type="password" id="newAPIToken" placeholder='包含"阅读分析数据和日志"权限的 API令牌'>
+                </div>
+            </div>
+            <div id="globalFields" style="display: none;">
+                <div class="input-group">
+                    <label>Email</label>
+                    <input type="email" id="newEmail" placeholder="您的 Cloudflare 账号邮箱">
+                </div>
+                <div class="input-group">
+                    <label>Global API Key</label>
+                    <input type="password" id="newGlobalAPIKey" placeholder="您的 Global API Key">
+                </div>
             </div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" onclick="closeAddModal()">取消</button>
@@ -1032,6 +1071,61 @@ async function UsagePanel管理面板(TOKEN) {
             }
         }
 
+        // 根据百分比计算颜色（绿 -> 黄 -> 红）
+        function getGradientColor(percent) {
+            percent = Math.max(0, Math.min(100, percent));
+            
+            let r, g, b;
+            
+            if (percent <= 50) {
+                // 绿色 (16, 185, 129) 到 黄色 (234, 179, 8)
+                const t = percent / 50;
+                r = Math.round(16 + (234 - 16) * t);
+                g = Math.round(185 + (179 - 185) * t);
+                b = Math.round(129 - 129 * t);
+            } else {
+                // 黄色 (234, 179, 8) 到 红色 (239, 68, 68)
+                const t = (percent - 50) / 50;
+                r = Math.round(234 + (239 - 234) * t);
+                g = Math.round(179 - 179 * t);
+                b = Math.round(8 + (68 - 8) * t);
+            }
+            
+            return \`rgb(\${r}, \${g}, \${b})\`;
+        }
+
+        // 获取对应百分比的色阴影
+        function getGradientShadow(percent) {
+            const color = getGradientColor(percent);
+            const rgb = color.match(/\\d+/g);
+            return \`rgba(\${rgb[0]}, \${rgb[1]}, \${rgb[2]}, 0.4)\`;
+        }
+
+        // 应用颜色到进度条容器
+        function applyGradientColor(container, percent) {
+            const color = getGradientColor(percent);
+            const shadow = getGradientShadow(percent);
+            container.style.setProperty('--gradient-color', color);
+            container.style.setProperty('--gradient-color-shadow', \`0 0 20px \${shadow}\`);
+            
+            // 设置进度条背景大小，让渐变正确显示
+            const bar = container.querySelector('.progress-bar');
+            if (bar && percent > 0) {
+                const bgSize = (100 / percent) * 100;
+                bar.style.setProperty('--bg-size', \`\${bgSize}%\`);
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('./api/logout', { method: 'POST' });
+            } catch (err) {
+                console.error('登出请求失败:', err);
+            } finally {
+                window.location.href = '/';
+            }
+        }
+
         async function fetchSummary() {
             const container = document.getElementById('summary-content');
             try {
@@ -1058,16 +1152,24 @@ async function UsagePanel管理面板(TOKEN) {
                     <div class="stats-grid">
                         <div class="mini-card">
                             <div class="mini-icon">🔶</div>
-                            <div class="mini-label">Workers</div>
-                            <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Workers</div>
+                                <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                         <div class="mini-card">
                             <div class="mini-icon">⚡️</div>
-                            <div class="mini-label">Pages</div>
-                            <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Pages</div>
+                                <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                     </div>
                 \`;
+                
+                // 应用颜色到百分数
+                const usageSection = container.querySelector('.usage-section');
+                applyGradientColor(usageSection, percent);
             } catch (err) {
                 container.innerHTML = '<div style="color: var(--danger)">加载汇总数据失败</div>';
             }
@@ -1090,26 +1192,28 @@ async function UsagePanel管理面板(TOKEN) {
                     const max = usage.max || 100000;
                     const percent = Math.min((total / max) * 100, 100).toFixed(1);
                     const updateTime = acc.UpdateTime ? new Date(acc.UpdateTime).toLocaleString() : '从未更新';
+                    const percentColor = getGradientColor(percent);
+                    const bgSize = percent > 0 ? (100 / percent) * 100 : 100;
                     
                     return \`
                         <div class="account-item">
                             <div class="account-info">
                                 <div>
                                     <div class="account-name">🔑 \${acc.Name}</div>
-                                    <div class="account-id">🔒 AccountID: \${acc.AccountID || 'Global API Key'}</div>
-                                    <div class="account-id" style="margin-top: 4px; opacity: 0.8;">🕒 最后更新: \${updateTime}</div>
+                                    <div class="account-id">\${acc.AccountID ? \`🔒 AccountID: \${acc.AccountID}\` : \`📧 Email: \${acc.Email}\`}</div>
+                                    <div class="account-id" style="margin-top: 4px; opacity: 0.8;">🕒 更新时间: \${updateTime}</div>
                                 </div>
-                                <button class="delete-btn" onclick="deleteAccount(\${acc.ID})">删除当前账号</button>
+                                <button class="delete-btn" onclick="deleteAccount(\${acc.ID})">删除账号</button>
                             </div>
                             <div class="usage-section" style="margin-bottom: 0">
                                 <div class="usage-header">
-                                    <span class="label">此账号用量: \${total.toLocaleString()} / \${max.toLocaleString()} <b style="color: var(--primary); margin-left: 4px;">\${percent}%</b></span>
+                                    <span class="label">请求使用情况: \${total.toLocaleString()} / \${max.toLocaleString()} <b style="color: \${percentColor}; margin-left: 4px;">\${percent}%</b></span>
                                     <span class="label" style="font-size: 0.8rem; font-variant-numeric: tabular-nums;">
                                         W: \${(usage.workers || 0).toLocaleString()} | P: \${(usage.pages || 0).toLocaleString()}
                                     </span>
                                 </div>
                                 <div class="progress-track" style="height: 8px">
-                                    <div class="progress-bar" style="width: \${percent}%"></div>
+                                    <div class="progress-bar" style="width: \${percent}%; --bg-size: \${bgSize}%"></div>
                                 </div>
                             </div>
                         </div>
@@ -1120,29 +1224,60 @@ async function UsagePanel管理面板(TOKEN) {
             }
         }
 
-        function openAddModal() { document.getElementById('addModal').classList.add('active'); }
+        function openAddModal() { 
+            document.getElementById('addModal').classList.add('active'); 
+            document.getElementById('authMethod').value = 'token';
+            switchAuthMethod();
+        }
+
+        function switchAuthMethod() {
+            const method = document.getElementById('authMethod').value;
+            document.getElementById('tokenFields').style.display = method === 'token' ? 'block' : 'none';
+            document.getElementById('globalFields').style.display = method === 'global' ? 'block' : 'none';
+        }
+
         function closeAddModal() { 
             document.getElementById('addModal').classList.remove('active');
             document.getElementById('newName').value = '';
             document.getElementById('newAccountID').value = '';
             document.getElementById('newAPIToken').value = '';
+            document.getElementById('newEmail').value = '';
+            document.getElementById('newGlobalAPIKey').value = '';
         }
 
         async function handleAddAccount() {
             const name = document.getElementById('newName').value;
-            const accountID = document.getElementById('newAccountID').value;
-            const apiToken = document.getElementById('newAPIToken').value;
+            const method = document.getElementById('authMethod').value;
+            
+            let accountID = null, apiToken = null, email = null, globalAPIKey = null;
 
-            if (!name || !accountID || !apiToken) {
-                showToast('⚠️ 请填写完整信息');
-                return;
+            if (method === 'token') {
+                accountID = document.getElementById('newAccountID').value;
+                apiToken = document.getElementById('newAPIToken').value;
+                if (!name || !accountID || !apiToken) {
+                    showToast('⚠️ 请填写完整信息');
+                    return;
+                }
+            } else {
+                email = document.getElementById('newEmail').value;
+                globalAPIKey = document.getElementById('newGlobalAPIKey').value;
+                if (!name || !email || !globalAPIKey) {
+                    showToast('⚠️ 请填写完整信息');
+                    return;
+                }
             }
 
             try {
                 const res = await fetch('./api/add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ Name: name, AccountID: accountID, APIToken: apiToken })
+                    body: JSON.stringify({ 
+                        Name: name, 
+                        AccountID: accountID, 
+                        APIToken: apiToken,
+                        Email: email,
+                        GlobalAPIKey: globalAPIKey
+                    })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -1257,7 +1392,7 @@ async function UsagePanel主页(TOKEN) {
 
         .container {
             width: 100%;
-            max-width: 440px;
+            max-width: 500px;
             animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -1344,8 +1479,9 @@ async function UsagePanel主页(TOKEN) {
             font-family: 'Outfit', monospace;
             font-size: 1.25rem;
             font-weight: 600;
-            color: var(--text-main);
-            text-shadow: 0 0 20px var(--primary-glow);
+            color: var(--gradient-color, var(--text-main));
+            text-shadow: 0 0 20px var(--gradient-color-shadow, var(--primary-glow));
+            transition: color 0.6s ease, text-shadow 0.6s ease;
         }
 
         .progress-track {
@@ -1360,11 +1496,14 @@ async function UsagePanel主页(TOKEN) {
 
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--accent));
+            background: linear-gradient(90deg, #10b981 0%, #eab308 50%, #ef4444 100%);
+            background-size: var(--bg-size, 100%);
+            background-position: left;
             border-radius: 999px;
             width: 0%;
             transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
             position: relative;
+            overflow: hidden;
         }
         
         .progress-bar::after {
@@ -1383,41 +1522,44 @@ async function UsagePanel主页(TOKEN) {
             margin-top: 1.5rem;
         }
 
-        .mini-card {
-            background: var(--item-bg);
-            border: 1px solid var(--stroke);
-            border-radius: 16px;
-            padding: 1.25rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: all 0.3s ease;
+        .mini-card { 
+            background: var(--item-bg); 
+            border: 1px solid var(--stroke); 
+            border-radius: 16px; 
+            padding: 1rem 1.25rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 1.25rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            position: relative;
+            overflow: hidden;
         }
-
-        .mini-card:hover {
-            background: rgba(99, 102, 241, 0.05);
-            transform: translateY(-4px);
-            border-color: var(--primary);
+        .mini-card:hover { 
+            background: rgba(99, 102, 241, 0.08); 
+            transform: translateY(-4px); 
+            border-color: var(--primary); 
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
         }
-
-        .mini-icon {
-            font-size: 1.5rem;
-            margin-bottom: 0.75rem;
+        .mini-icon { 
+            font-size: 1.75rem; 
+            margin-bottom: 0; 
+            line-height: 1;
             filter: drop-shadow(0 0 10px rgba(255,255,255,0.1));
         }
-
-        .mini-label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
+        .mini-info { display: flex; flex-direction: column; justify-content: center; }
+        .mini-label { 
+            font-size: 0.7rem; 
+            text-transform: uppercase; 
             letter-spacing: 0.05em;
-            color: var(--text-muted);
-            margin-bottom: 0.25rem;
+            color: var(--text-muted); 
+            margin-bottom: 0; 
+            font-weight: 500;
         }
-
-        .mini-value {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-main);
+        .mini-value { 
+            font-size: 1.25rem; 
+            font-weight: 700; 
+            color: var(--text-main); 
+            line-height: 1.2;
         }
 
         .total-text {
@@ -1810,6 +1952,51 @@ async function UsagePanel主页(TOKEN) {
 
         initTheme();
 
+        // 根据百分比计算颜色（绿 -> 黄 -> 红）
+        function getGradientColor(percent) {
+            percent = Math.max(0, Math.min(100, percent));
+            
+            let r, g, b;
+            
+            if (percent <= 50) {
+                // 绿色 (16, 185, 129) 到 黄色 (234, 179, 8)
+                const t = percent / 50;
+                r = Math.round(16 + (234 - 16) * t);
+                g = Math.round(185 + (179 - 185) * t);
+                b = Math.round(129 - 129 * t);
+            } else {
+                // 黄色 (234, 179, 8) 到 红色 (239, 68, 68)
+                const t = (percent - 50) / 50;
+                r = Math.round(234 + (239 - 234) * t);
+                g = Math.round(179 - 179 * t);
+                b = Math.round(8 + (68 - 8) * t);
+            }
+            
+            return \`rgb(\${r}, \${g}, \${b})\`;
+        }
+
+        // 获取对应百分比的色阴影
+        function getGradientShadow(percent) {
+            const color = getGradientColor(percent);
+            const rgb = color.match(/\\d+/g);
+            return \`rgba(\${rgb[0]}, \${rgb[1]}, \${rgb[2]}, 0.4)\`;
+        }
+
+        // 应用颜色到进度条容器
+        function applyGradientColor(container, percent) {
+            const color = getGradientColor(percent);
+            const shadow = getGradientShadow(percent);
+            container.style.setProperty('--gradient-color', color);
+            container.style.setProperty('--gradient-color-shadow', \`0 0 20px \${shadow}\`);
+            
+            // 设置进度条背景大小，让渐变正确显示
+            const bar = container.querySelector('.progress-bar');
+            if (bar && percent > 0) {
+                const bgSize = (100 / percent) * 100;
+                bar.style.setProperty('--bg-size', \`\${bgSize}%\`);
+            }
+        }
+
         async function fetchUsage() {
             const content = document.getElementById('content');
             try {
@@ -1846,20 +2033,26 @@ async function UsagePanel主页(TOKEN) {
                     <div class="stats-grid">
                         <div class="mini-card">
                             <div class="mini-icon">🔶</div>
-                            <div class="mini-label">Workers</div>
-                            <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Workers</div>
+                                <div class="mini-value">\${(data.workers || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                         <div class="mini-card">
                             <div class="mini-icon">⚡️</div>
-                            <div class="mini-label">Pages</div>
-                            <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            <div class="mini-info">
+                                <div class="mini-label">Pages</div>
+                                <div class="mini-value">\${(data.pages || 0).toLocaleString()}</div>
+                            </div>
                         </div>
                     </div>
                 \`;
 
-                // Animate progress bar
+                // Animate progress bar and apply colors
                 requestAnimationFrame(() => {
+                    const usageSection = content.querySelector('.usage-section');
                     const bar = content.querySelector('.progress-bar');
+                    if(usageSection) applyGradientColor(usageSection, percent);
                     if(bar) bar.style.width = percent + '%';
                 });
 
