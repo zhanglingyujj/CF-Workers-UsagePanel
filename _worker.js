@@ -574,9 +574,9 @@ async function UsagePanel管理面板(TOKEN) {
         .usage-section { margin-bottom: 2rem; position: relative; }
         .usage-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem; }
         .label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
-        .percentage { font-family: 'Outfit', monospace; font-size: 1.25rem; font-weight: 600; color: var(--text-main); text-shadow: 0 0 20px var(--primary-glow); }
+        .percentage { font-family: 'Outfit', monospace; font-size: 1.25rem; font-weight: 600; color: var(--gradient-color, var(--text-main)); text-shadow: 0 0 20px var(--gradient-color-shadow, var(--primary-glow)); transition: color 0.6s ease, text-shadow 0.6s ease; }
         .progress-track { background: var(--track-bg); border: 1px solid var(--stroke); border-radius: 999px; height: 14px; overflow: hidden; position: relative; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 999px; width: 0%; transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #10b981 0%, #eab308 50%, #ef4444 100%); background-size: var(--bg-size, 100%); background-position: left; border-radius: 999px; width: 0%; transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; }
         .progress-bar::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); transform: translateX(-100%); animation: shimmer 2.5s infinite; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
         .mini-card { 
@@ -1071,6 +1071,61 @@ async function UsagePanel管理面板(TOKEN) {
             }
         }
 
+        // 根据百分比计算颜色（绿 -> 黄 -> 红）
+        function getGradientColor(percent) {
+            percent = Math.max(0, Math.min(100, percent));
+            
+            let r, g, b;
+            
+            if (percent <= 50) {
+                // 绿色 (16, 185, 129) 到 黄色 (234, 179, 8)
+                const t = percent / 50;
+                r = Math.round(16 + (234 - 16) * t);
+                g = Math.round(185 + (179 - 185) * t);
+                b = Math.round(129 - 129 * t);
+            } else {
+                // 黄色 (234, 179, 8) 到 红色 (239, 68, 68)
+                const t = (percent - 50) / 50;
+                r = Math.round(234 + (239 - 234) * t);
+                g = Math.round(179 - 179 * t);
+                b = Math.round(8 + (68 - 8) * t);
+            }
+            
+            return \`rgb(\${r}, \${g}, \${b})\`;
+        }
+
+        // 获取对应百分比的色阴影
+        function getGradientShadow(percent) {
+            const color = getGradientColor(percent);
+            const rgb = color.match(/\\d+/g);
+            return \`rgba(\${rgb[0]}, \${rgb[1]}, \${rgb[2]}, 0.4)\`;
+        }
+
+        // 应用颜色到进度条容器
+        function applyGradientColor(container, percent) {
+            const color = getGradientColor(percent);
+            const shadow = getGradientShadow(percent);
+            container.style.setProperty('--gradient-color', color);
+            container.style.setProperty('--gradient-color-shadow', \`0 0 20px \${shadow}\`);
+            
+            // 设置进度条背景大小，让渐变正确显示
+            const bar = container.querySelector('.progress-bar');
+            if (bar && percent > 0) {
+                const bgSize = (100 / percent) * 100;
+                bar.style.setProperty('--bg-size', \`\${bgSize}%\`);
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('./api/logout', { method: 'POST' });
+            } catch (err) {
+                console.error('登出请求失败:', err);
+            } finally {
+                window.location.href = '/';
+            }
+        }
+
         async function fetchSummary() {
             const container = document.getElementById('summary-content');
             try {
@@ -1111,6 +1166,10 @@ async function UsagePanel管理面板(TOKEN) {
                         </div>
                     </div>
                 \`;
+                
+                // 应用颜色到百分数
+                const usageSection = container.querySelector('.usage-section');
+                applyGradientColor(usageSection, percent);
             } catch (err) {
                 container.innerHTML = '<div style="color: var(--danger)">加载汇总数据失败</div>';
             }
@@ -1133,6 +1192,8 @@ async function UsagePanel管理面板(TOKEN) {
                     const max = usage.max || 100000;
                     const percent = Math.min((total / max) * 100, 100).toFixed(1);
                     const updateTime = acc.UpdateTime ? new Date(acc.UpdateTime).toLocaleString() : '从未更新';
+                    const percentColor = getGradientColor(percent);
+                    const bgSize = percent > 0 ? (100 / percent) * 100 : 100;
                     
                     return \`
                         <div class="account-item">
@@ -1146,13 +1207,13 @@ async function UsagePanel管理面板(TOKEN) {
                             </div>
                             <div class="usage-section" style="margin-bottom: 0">
                                 <div class="usage-header">
-                                    <span class="label">请求使用情况: \${total.toLocaleString()} / \${max.toLocaleString()} <b style="color: var(--primary); margin-left: 4px;">\${percent}%</b></span>
+                                    <span class="label">请求使用情况: \${total.toLocaleString()} / \${max.toLocaleString()} <b style="color: \${percentColor}; margin-left: 4px;">\${percent}%</b></span>
                                     <span class="label" style="font-size: 0.8rem; font-variant-numeric: tabular-nums;">
                                         W: \${(usage.workers || 0).toLocaleString()} | P: \${(usage.pages || 0).toLocaleString()}
                                     </span>
                                 </div>
                                 <div class="progress-track" style="height: 8px">
-                                    <div class="progress-bar" style="width: \${percent}%"></div>
+                                    <div class="progress-bar" style="width: \${percent}%; --bg-size: \${bgSize}%"></div>
                                 </div>
                             </div>
                         </div>
@@ -1418,8 +1479,9 @@ async function UsagePanel主页(TOKEN) {
             font-family: 'Outfit', monospace;
             font-size: 1.25rem;
             font-weight: 600;
-            color: var(--text-main);
-            text-shadow: 0 0 20px var(--primary-glow);
+            color: var(--gradient-color, var(--text-main));
+            text-shadow: 0 0 20px var(--gradient-color-shadow, var(--primary-glow));
+            transition: color 0.6s ease, text-shadow 0.6s ease;
         }
 
         .progress-track {
@@ -1434,11 +1496,14 @@ async function UsagePanel主页(TOKEN) {
 
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--accent));
+            background: linear-gradient(90deg, #10b981 0%, #eab308 50%, #ef4444 100%);
+            background-size: var(--bg-size, 100%);
+            background-position: left;
             border-radius: 999px;
             width: 0%;
             transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
             position: relative;
+            overflow: hidden;
         }
         
         .progress-bar::after {
@@ -1887,6 +1952,51 @@ async function UsagePanel主页(TOKEN) {
 
         initTheme();
 
+        // 根据百分比计算颜色（绿 -> 黄 -> 红）
+        function getGradientColor(percent) {
+            percent = Math.max(0, Math.min(100, percent));
+            
+            let r, g, b;
+            
+            if (percent <= 50) {
+                // 绿色 (16, 185, 129) 到 黄色 (234, 179, 8)
+                const t = percent / 50;
+                r = Math.round(16 + (234 - 16) * t);
+                g = Math.round(185 + (179 - 185) * t);
+                b = Math.round(129 - 129 * t);
+            } else {
+                // 黄色 (234, 179, 8) 到 红色 (239, 68, 68)
+                const t = (percent - 50) / 50;
+                r = Math.round(234 + (239 - 234) * t);
+                g = Math.round(179 - 179 * t);
+                b = Math.round(8 + (68 - 8) * t);
+            }
+            
+            return \`rgb(\${r}, \${g}, \${b})\`;
+        }
+
+        // 获取对应百分比的色阴影
+        function getGradientShadow(percent) {
+            const color = getGradientColor(percent);
+            const rgb = color.match(/\\d+/g);
+            return \`rgba(\${rgb[0]}, \${rgb[1]}, \${rgb[2]}, 0.4)\`;
+        }
+
+        // 应用颜色到进度条容器
+        function applyGradientColor(container, percent) {
+            const color = getGradientColor(percent);
+            const shadow = getGradientShadow(percent);
+            container.style.setProperty('--gradient-color', color);
+            container.style.setProperty('--gradient-color-shadow', \`0 0 20px \${shadow}\`);
+            
+            // 设置进度条背景大小，让渐变正确显示
+            const bar = container.querySelector('.progress-bar');
+            if (bar && percent > 0) {
+                const bgSize = (100 / percent) * 100;
+                bar.style.setProperty('--bg-size', \`\${bgSize}%\`);
+            }
+        }
+
         async function fetchUsage() {
             const content = document.getElementById('content');
             try {
@@ -1938,9 +2048,11 @@ async function UsagePanel主页(TOKEN) {
                     </div>
                 \`;
 
-                // Animate progress bar
+                // Animate progress bar and apply colors
                 requestAnimationFrame(() => {
+                    const usageSection = content.querySelector('.usage-section');
                     const bar = content.querySelector('.progress-bar');
+                    if(usageSection) applyGradientColor(usageSection, percent);
                     if(bar) bar.style.width = percent + '%';
                 });
 
